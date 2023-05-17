@@ -30,3 +30,14 @@ def get_eu_capitals() -> dict[str, str]:
     iso_to_cap_EU_norm = {k: unidecode(v) for k, v in iso_to_cap_EU.items()}
     return iso_to_cap_EU_norm
 
+
+def _add_relative_position_in_timezone(countries_df: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    """
+    Adds the relative position in the respective timezone for each country in the given
+    dataframe. Uses the naturalearth 10m-cultural-vectors (Timezones) dataset.
+
+    :param countries_df: GeoPandas dataframe containing at least the geometry, iso_a3 code
+    and capital name (normalized with unidecode) of EU countries.
+    :return: Returns a GeoPandas dataframe extended by the relative position feature.
+    """
+    pass
