@@ -49,7 +49,8 @@ init_doc()
 
 from bokeh.plotting import figure
 from bokeh.models import GeoJSONDataSource, LinearColorMapper, ColorBar, ColumnDataSource, LabelSet, HoverTool
-from bokeh.tile_providers import get_provider, Vendors
+from bokeh.tile_providers import Vendors
+from bokeh.models import DataTable, TableColumn
 from bokeh.palettes import Plasma256
 from bokeh.palettes import brewer
 import json
@@ -85,8 +86,7 @@ def bokeh_plot_map(data):
     p.ygrid.grid_line_color = None
 
     # AD MAP TILES ---------------------------------------------------------------------------
-    world_tile = get_provider(Vendors.CARTODBPOSITRON_RETINA)
-    p.add_tile(world_tile)
+    p.add_tile(Vendors.CARTODBPOSITRON_RETINA)
 
     # ADD GEO STUFF FOR COUNTRIES AS A WHOLE -------------------------------------------------
     geo_data_source = get_bokeh_geodata_source(data)
@@ -141,8 +141,38 @@ def bokeh_plot_map(data):
     return p
 
 
+def bokeh_city_table(city_data):
+    source = ColumnDataSource(city_data)
+    columns = [
+        TableColumn(field="NAME", title="City Name"),
+        TableColumn(field="social_timezone", title="Social Timezone"),
+        TableColumn(field="longitudinal_diff_km", title="Distance to east meridian (km)"),
+        TableColumn(field="country_ISO_A2", title="Country Code (ISO_A2)")
+    ]
+    data_table = DataTable(source=source, columns=columns)
+    return data_table
+
+
+def bokeh_sun_table(sun_data):
+    source = ColumnDataSource(sun_data)
+
+    # Add data table
+    columns = [
+        TableColumn(field="iso_a3", title="Country Code (ISO_A3)"),
+        TableColumn(field="year", title="Year"),
+        TableColumn(field="month", title="Month"),
+        TableColumn(field="day", title="Day"),
+        TableColumn(field="sunrise_UTC", title="Sunrise (UTC/GMT)"),
+        TableColumn(field="sunset_UTC", title="Sunrise (UTC/GMT)")
+    ]
+    data_table = DataTable(source=source, columns=columns)
+    return data_table
+
+
 def map_visualization():
-    map_pane = pn.pane.Bokeh(width=1500, height=1000)
+    # CREATE MAP  ----------------------------------------------------------------------------------
+    # Create Map Panel
+    map_pane = pn.pane.Bokeh(sizing_mode='scale_both', width_policy='max')
     start_date = date(2022, 1, 1)
     end_date = date(2022, 12, 31)
     selected_date = pn.widgets.DateSlider(name='Date Slider', value=start_date, start=start_date, end=end_date)
@@ -154,7 +184,21 @@ def map_visualization():
 
     selected_date.param.watch(update_map, 'value')
     selected_date.param.trigger('value')
-    return pn.Column(selected_date, map_pane)
+
+    # CREATE DATATABLES ----------------------------------------------------------------------------------
+    sizing_dict = dict(sizing_mode='stretch_both', width_policy='auto', margin=10)
+    # Create City Table Panel
+    city_data_pane = pn.pane.Bokeh(**sizing_dict)
+    city_data_pane.object = bokeh_city_table(top_city_data)
+
+    # Create Sun Table Panel
+    sun_data_pane = pn.pane.Bokeh(**sizing_dict)
+    sun_data_pane.object = bokeh_sun_table(sun_data_gpd.iloc[:, :-1])
+
+    # Create panel application layout
+    map_vis = pn.Column(selected_date, map_pane)
+    tabs = pn.Tabs(('Map', map_vis), ('City Data', city_data_pane), ('Sun Data', sun_data_pane))
+    return tabs
 
 
 app = map_visualization()
