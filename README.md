@@ -21,7 +21,3 @@ the command to convert the `index.py` to a html file and js file in the
 ```bash
 panel convert index.py --to pyodide-worker --out docs
 ```
-
-In order for GitHub Pages to be able to deploy the page, the
-name of the html file needs to be changed to `index.html`
-manually at the moment.
