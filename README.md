@@ -5,7 +5,13 @@ users to explore effects of daytimes and workingtimes on the circadian rythm.
 ![Circadian Rythm Visualization](imgs/circ_vis_1.png)
 
 We currently use Panel/Bokeh and Web Assembly to deploy our visualization on
-GitHub Pages.
+GitHub Pages. 
+
+**You can visit the current status of the application here:**
+https://pvonderlind.github.io/CircadianRythmEU/
+(Note: Depending on your local system, the application might be slow when running
+in GitHub Pages, as WebAssembly has to install the Python dependencies and load the datasets
+when loading the page!)
 
 ### Usage
 You can run the visualization yourself using the `circadian_rythm_interactive.ipynb` notebook.
