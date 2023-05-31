@@ -15,13 +15,9 @@ kernel for your Jupyter server.
 ### Using Web Assembly
 To convert the visalization to a self-contained web-page we use Web Assembly.
 This is offered by the Panel library per default using Pyodide. Below is
-the command to convert the `panel_app.py` to a html file and js file in the 
+the command to convert the `index.py` to a html file and js file in the 
 `docs` folder:
 
 ```bash
-panel convert panel_app.py --to pyodide-worker --out docs
+panel convert index.py --to pyodide-worker --out docs
 ```
-
-In order for GitHub Pages to be able to deploy the page, the
-name of the html file needs to be changed to `index.html`
-manually at the moment.

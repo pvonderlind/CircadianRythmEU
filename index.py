@@ -124,15 +124,13 @@ def map_visualization():
     # CREATE MAP  ----------------------------------------------------------------------------------
     # Create Map Panel
     map_pane = pn.pane.Bokeh(sizing_mode='scale_both', width_policy='max')
-    start_date = date(2022, 1, 1)
-    end_date = date(2022, 12, 31)
+    start_date = date(2022,1,1)
+    end_date = date(2022,12,31)
     selected_date = pn.widgets.DateSlider(name='Date Slider', value=start_date, start=start_date, end=end_date)
-
     def update_map(event):
         d = selected_date.value
         selected_sundata = sun_data_gpd.query(f'day == {d.day} & month == {d.month} & year == {d.year}')
         map_pane.object = bokeh_plot_map(selected_sundata)
-
     selected_date.param.watch(update_map, 'value')
     selected_date.param.trigger('value')
 
@@ -144,7 +142,7 @@ def map_visualization():
 
     # Create Sun Table Panel
     sun_data_pane = pn.pane.Bokeh(**sizing_dict)
-    sun_data_pane.object = bokeh_sun_table(sun_data_gpd.iloc[:, :-1])
+    sun_data_pane.object = bokeh_sun_table(sun_data_gpd.iloc[:,:-1])
 
     # Create panel application layout
     map_vis = pn.Column(selected_date, map_pane)
