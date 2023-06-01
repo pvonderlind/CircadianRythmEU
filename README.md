@@ -2,12 +2,7 @@
 This repsitory implements an interactive map of Europe which allows
 users to explore effects of daytimes and workingtimes on the circadian rythm.
 
-<iframe
-	src="https://philip-vonderlind-circadian-rythm.hf.space"
-	frameborder="0"
-	width="850"
-	height="450"
-></iframe>
+![Visualization](imgs/circ_vis_1.png)
 
 We currently use **HuggingFace Spaces** to deploy our visualization: \
 https://huggingface.co/spaces/philip-vonderlind/Circadian_Rythm \
