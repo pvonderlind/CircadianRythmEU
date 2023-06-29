@@ -124,8 +124,8 @@ def map_visualization():
     # CREATE MAP  ----------------------------------------------------------------------------------
     # Create Map Panel
     map_pane = pn.pane.Bokeh(sizing_mode='scale_both', width_policy='max')
-    start_date = date(2022,1,1)
-    end_date = date(2022,12,31)
+    start_date = date(2022, 1 ,1)
+    end_date = date(2022, 12, 31)
     selected_date = pn.widgets.DateSlider(name='Date Slider', value=start_date, start=start_date, end=end_date)
     def update_map(event):
         d = selected_date.value
