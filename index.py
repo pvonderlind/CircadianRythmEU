@@ -94,18 +94,31 @@ def bokeh_plot_map(data):
 
 from bokeh.models import DataTable, TableColumn
 
+from bokeh.models import DataTable, TableColumn
+from sklearn.preprocessing import MinMaxScaler
 
-def bokeh_country_table(city_data):
+
+def bokeh_country_table(city_data, eu_data):
+    # Add group city data by country
     cmeans = city_data.groupby('country_ISO_A2')['longitudinal_diff_km'].mean()
     country_data = city_data.groupby('country_ISO_A2').first().reset_index()
     country_data['mean_longitudinal_diff_km'] = country_data.apply(lambda x: cmeans[x['country_ISO_A2']], axis=1)
     country_data = country_data[['social_timezone', 'mean_longitudinal_diff_km', 'country_ISO_A2']]
-    country_data_sorted = country_data.sort_values('mean_longitudinal_diff_km', ascending=False)
+
+    # Merge population metric from eu_gpd, normalize and merge to country data
+    eu_data_pop = eu_data[['iso_a2', 'pop_est']]
+    scaler = MinMaxScaler()
+    eu_data_pop.loc[:, ['pop_norm']] = scaler.fit_transform(eu_data_pop[['pop_est']])
+    country_data = country_data.merge(eu_data_pop, left_on='country_ISO_A2', right_on='iso_a2')
+    country_data['weighted_mean_longdiff'] = country_data['pop_norm'] * country_data['mean_longitudinal_diff_km']
+
+    country_data_sorted = country_data.sort_values('weighted_mean_longdiff', ascending=False)
     source = ColumnDataSource(country_data_sorted)
     columns = [
         TableColumn(field="country_ISO_A2", title="Country Code (ISO_A2)"),
         TableColumn(field="social_timezone", title="Social Timezone"),
-        TableColumn(field="mean_longitudinal_diff_km", title="Avg. Distance to east meridian (km)")
+        TableColumn(field="weighted_mean_longdiff", title="Weighted (pop.size) avg. dist. to east meridian (km)"),
+        TableColumn(field="pop_est", title="Estimated population")
     ]
     data_table = DataTable(source=source, columns=columns)
     return data_table
@@ -147,7 +160,7 @@ def map_visualization():
     sizing_dict = dict(sizing_mode='stretch_both', width_policy='auto', margin=10)
     # Create City Table Panel
     country_data_pane = pn.pane.Bokeh(**sizing_dict)
-    country_data_pane.object = bokeh_country_table(top_city_data)
+    country_data_pane.object = bokeh_country_table(top_city_data, eu_gpd)
 
     # Create Sun Table Panel
     sun_data_pane = pn.pane.Bokeh(**sizing_dict)

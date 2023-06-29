@@ -22,13 +22,16 @@ def load_eu_countries_as_geopandas(ignored_countries=None) -> gpd.GeoDataFrame:
     Loads a geopandas dataframe using the 'naturalearth_lowres' dataset from GeoPandas
     for europe. This includes borders and other country data.
     :param ignored_countries: A list of countries in ISO_A3 to ignore.
-    :return: Returns a GeoPandas dataframe of EU countries.
+    :return: Returns a GeoPandas dataframe of european countries.
     """
     if ignored_countries is None:
         ignored_countries = ['RUS']
     world = gpd.read_file(gpd.datasets.get_path('naturalearth_lowres'))
     europe = world[world.continent == 'Europe']
     europe = europe[~europe['iso_a3'].isin(ignored_countries)]
+    c = CountryInfo()
+    iso_conversion = {v['ISO']['alpha3']: v['ISO']['alpha2'] for _, v in c.all().items()}
+    europe['iso_a2'] = europe.apply(lambda x: iso_conversion.get(x['iso_a3'], None), axis=1)
     return europe
 
 
