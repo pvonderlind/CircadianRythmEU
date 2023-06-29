@@ -92,13 +92,20 @@ def bokeh_plot_map(data):
     return p
 
 
-def bokeh_city_table(city_data):
-    source = ColumnDataSource(city_data)
+from bokeh.models import DataTable, TableColumn
+
+
+def bokeh_country_table(city_data):
+    cmeans = city_data.groupby('country_ISO_A2')['longitudinal_diff_km'].mean()
+    country_data = city_data.groupby('country_ISO_A2').first().reset_index()
+    country_data['mean_longitudinal_diff_km'] = country_data.apply(lambda x: cmeans[x['country_ISO_A2']], axis=1)
+    country_data = country_data[['social_timezone', 'mean_longitudinal_diff_km', 'country_ISO_A2']]
+    country_data_sorted = country_data.sort_values('mean_longitudinal_diff_km', ascending=False)
+    source = ColumnDataSource(country_data_sorted)
     columns = [
-        TableColumn(field="NAME", title="City Name"),
+        TableColumn(field="country_ISO_A2", title="Country Code (ISO_A2)"),
         TableColumn(field="social_timezone", title="Social Timezone"),
-        TableColumn(field="longitudinal_diff_km", title="Distance to east meridian (km)"),
-        TableColumn(field="country_ISO_A2", title="Country Code (ISO_A2)")
+        TableColumn(field="mean_longitudinal_diff_km", title="Avg. Distance to east meridian (km)")
     ]
     data_table = DataTable(source=source, columns=columns)
     return data_table
@@ -124,31 +131,34 @@ def map_visualization():
     # CREATE MAP  ----------------------------------------------------------------------------------
     # Create Map Panel
     map_pane = pn.pane.Bokeh(sizing_mode='scale_both', width_policy='max')
-    start_date = date(2022, 1 ,1)
+    start_date = date(2022, 1, 1)
     end_date = date(2022, 12, 31)
     selected_date = pn.widgets.DateSlider(name='Date Slider', value=start_date, start=start_date, end=end_date)
+
     def update_map(event):
         d = selected_date.value
         selected_sundata = sun_data_gpd.query(f'day == {d.day} & month == {d.month} & year == {d.year}')
         map_pane.object = bokeh_plot_map(selected_sundata)
+
     selected_date.param.watch(update_map, 'value')
     selected_date.param.trigger('value')
 
     # CREATE DATATABLES ----------------------------------------------------------------------------------
     sizing_dict = dict(sizing_mode='stretch_both', width_policy='auto', margin=10)
     # Create City Table Panel
-    city_data_pane = pn.pane.Bokeh(**sizing_dict)
-    city_data_pane.object = bokeh_city_table(top_city_data)
+    country_data_pane = pn.pane.Bokeh(**sizing_dict)
+    country_data_pane.object = bokeh_country_table(top_city_data)
 
     # Create Sun Table Panel
     sun_data_pane = pn.pane.Bokeh(**sizing_dict)
-    sun_data_pane.object = bokeh_sun_table(sun_data_gpd.iloc[:,:-1])
+    sun_data_pane.object = bokeh_sun_table(sun_data_gpd.iloc[:, :-1])
 
     # Create panel application layout
     map_vis = pn.Column(selected_date, map_pane)
-    tabs = pn.Tabs(('Map', map_vis), ('City Data', city_data_pane), ('Sun Data', sun_data_pane))
+    tabs = pn.Tabs(('Map', map_vis), ('Country Data', country_data_pane), ('Sun Data', sun_data_pane))
     return tabs
 
 
+# SERVE APP
 app = map_visualization()
 app.servable()
