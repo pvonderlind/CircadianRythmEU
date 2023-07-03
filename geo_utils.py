@@ -2,6 +2,7 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 from countryinfo import CountryInfo
+from sklearn.preprocessing import MinMaxScaler
 from unidecode import unidecode
 from geopy.geocoders import Nominatim
 from timezonefinder import TimezoneFinder
@@ -60,6 +61,28 @@ def get_eu_city_data(top_n_pop: int = 3) -> pd.DataFrame:
     return _add_timezone_features_to_cities(top_n_cities_per_country)
 
 
+def get_avg_country_data(city_data: pd.DataFrame, eu_data: pd.DataFrame) -> pd.DataFrame:
+    """
+    Get average circadian (and other statistical measures) statistics from the top n cities
+    for european countries.
+    :param city_data: Dataframe of the top n cities population wise for EU countries, has to have country_ISO_A2 field.
+    :param eu_data: Dataframe of data related to european countries (stats, geo, etc.), Has to have iso_a2 field.
+    :return: Return an dataframe with averages measures of the given cities for each country.
+    """
+    cmeans = city_data.groupby('country_ISO_A2')['longitudinal_diff_km'].mean()
+    country_data = city_data.groupby('country_ISO_A2').first().reset_index()
+    country_data['mean_longitudinal_diff_km'] = country_data.apply(lambda x: cmeans[x['country_ISO_A2']], axis=1)
+    country_data = country_data[['social_timezone', 'mean_longitudinal_diff_km', 'country_ISO_A2']]
+
+    # Merge population metric from eu_gpd, normalize and merge to country data
+    eu_data_pop = eu_data[['iso_a2', 'pop_est', 'name']]
+    scaler = MinMaxScaler()
+    eu_data_pop.loc[:, ['pop_norm']] = scaler.fit_transform(eu_data_pop[['pop_est']])
+    country_data = country_data.merge(eu_data_pop, left_on='country_ISO_A2', right_on='iso_a2')
+    country_data['weighted_mean_longdiff'] = country_data['pop_norm'] * country_data['mean_longitudinal_diff_km']
+    country_data = country_data.drop(columns='country_ISO_A2')
+    return country_data
+
 def _get_top_n_pop_cities_per_country(top_n_pop: int) -> pd.DataFrame:
     # Load data from Urban Audit dataset
     eu_cities_pop = pd.read_csv('datasets/Eurostat/urban_population/urb_cpop1_page_tabular.tsv', sep='\t', header=0)
@@ -105,7 +128,7 @@ def _mercantor_from_coords(lat, lon):
     r_major = 6378137.000
     x = r_major * math.radians(lon)
     scale = x / lon
-    y = 180 / math.pi * math.log(math.tan(math.pi/4 + lat * (math.pi/180)/2)) * scale
+    y = 180 / math.pi * math.log(math.tan(math.pi / 4 + lat * (math.pi / 180) / 2)) * scale
     return x, y
 
 

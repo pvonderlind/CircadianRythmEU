@@ -13,6 +13,7 @@ import pandas as pd
 eu_data_path = 'https://raw.githubusercontent.com/pvonderlind/CircadianRythmEU/master/datasets/saved/eu_gpd.geojson'
 city_data_path = 'https://raw.githubusercontent.com/pvonderlind/CircadianRythmEU/master/datasets/saved/city_data.csv'
 sunset_data = 'https://raw.githubusercontent.com/pvonderlind/CircadianRythmEU/master/datasets/saved/sunset_data_2022.geojson'
+avg_country_data =  'https://raw.githubusercontent.com/pvonderlind/CircadianRythmEU/master/datasets/saved/avg_country_data.csv'
 
 eu_gpd = gpd.read_file(eu_data_path)
 top_city_data = pd.read_csv(city_data_path)
@@ -98,31 +99,18 @@ from bokeh.models import DataTable, TableColumn
 from sklearn.preprocessing import MinMaxScaler
 
 
-def bokeh_country_table(city_data, eu_data):
-    # Add group city data by country
-    cmeans = city_data.groupby('country_ISO_A2')['longitudinal_diff_km'].mean()
-    country_data = city_data.groupby('country_ISO_A2').first().reset_index()
-    country_data['mean_longitudinal_diff_km'] = country_data.apply(lambda x: cmeans[x['country_ISO_A2']], axis=1)
-    country_data = country_data[['social_timezone', 'mean_longitudinal_diff_km', 'country_ISO_A2']]
-
-    # Merge population metric from eu_gpd, normalize and merge to country data
-    eu_data_pop = eu_data[['iso_a2', 'pop_est']]
-    scaler = MinMaxScaler()
-    eu_data_pop.loc[:, ['pop_norm']] = scaler.fit_transform(eu_data_pop[['pop_est']])
-    country_data = country_data.merge(eu_data_pop, left_on='country_ISO_A2', right_on='iso_a2')
-    country_data['weighted_mean_longdiff'] = country_data['pop_norm'] * country_data['mean_longitudinal_diff_km']
-
+def bokeh_country_table(country_data):
     country_data_sorted = country_data.sort_values('weighted_mean_longdiff', ascending=False)
     source = ColumnDataSource(country_data_sorted)
     columns = [
-        TableColumn(field="country_ISO_A2", title="Country Code (ISO_A2)"),
+        TableColumn(field='name', title='Country Name'),
+        TableColumn(field="iso_a2",title="Country Code (ISO_A2)"),
         TableColumn(field="social_timezone", title="Social Timezone"),
         TableColumn(field="weighted_mean_longdiff", title="Weighted (pop.size) avg. dist. to east meridian (km)"),
         TableColumn(field="pop_est", title="Estimated population")
     ]
     data_table = DataTable(source=source, columns=columns)
     return data_table
-
 
 def bokeh_sun_table(sun_data):
     source = ColumnDataSource(sun_data)
@@ -144,15 +132,13 @@ def map_visualization():
     # CREATE MAP  ----------------------------------------------------------------------------------
     # Create Map Panel
     map_pane = pn.pane.Bokeh(sizing_mode='scale_both', width_policy='max')
-    start_date = date(2022, 1, 1)
-    end_date = date(2022, 12, 31)
+    start_date = date(2022,1,1)
+    end_date = date(2022,12,31)
     selected_date = pn.widgets.DateSlider(name='Date Slider', value=start_date, start=start_date, end=end_date)
-
     def update_map(event):
         d = selected_date.value
         selected_sundata = sun_data_gpd.query(f'day == {d.day} & month == {d.month} & year == {d.year}')
         map_pane.object = bokeh_plot_map(selected_sundata)
-
     selected_date.param.watch(update_map, 'value')
     selected_date.param.trigger('value')
 
@@ -160,17 +146,16 @@ def map_visualization():
     sizing_dict = dict(sizing_mode='stretch_both', width_policy='auto', margin=10)
     # Create City Table Panel
     country_data_pane = pn.pane.Bokeh(**sizing_dict)
-    country_data_pane.object = bokeh_country_table(top_city_data, eu_gpd)
+    country_data_pane.object = bokeh_country_table(avg_country_data)
 
     # Create Sun Table Panel
     sun_data_pane = pn.pane.Bokeh(**sizing_dict)
-    sun_data_pane.object = bokeh_sun_table(sun_data_gpd.iloc[:, :-1])
+    sun_data_pane.object = bokeh_sun_table(sun_data_gpd.iloc[:,:-1])
 
     # Create panel application layout
     map_vis = pn.Column(selected_date, map_pane)
     tabs = pn.Tabs(('Map', map_vis), ('Country Data', country_data_pane), ('Sun Data', sun_data_pane))
     return tabs
-
 
 # SERVE APP
 app = map_visualization()
