@@ -72,7 +72,7 @@ def get_avg_country_data(city_data: pd.DataFrame, eu_data: pd.DataFrame) -> pd.D
     cmeans = city_data.groupby('country_ISO_A2')['longitudinal_diff_km'].mean()
     country_data = city_data.groupby('country_ISO_A2').first().reset_index()
     country_data['mean_longitudinal_diff_km'] = country_data.apply(lambda x: cmeans[x['country_ISO_A2']], axis=1)
-    country_data = country_data[['social_timezone', 'mean_longitudinal_diff_km', 'country_ISO_A2']]
+    country_data = country_data[['social_timezone', 'mean_longitudinal_diff_km', 'country_ISO_A2', 'mercantor_x', 'mercantor_y']]
 
     # Merge population metric from eu_gpd, normalize and merge to country data
     eu_data_pop = eu_data[['iso_a2', 'pop_est', 'name']]
@@ -80,6 +80,7 @@ def get_avg_country_data(city_data: pd.DataFrame, eu_data: pd.DataFrame) -> pd.D
     eu_data_pop.loc[:, ['pop_norm']] = scaler.fit_transform(eu_data_pop[['pop_est']])
     country_data = country_data.merge(eu_data_pop, left_on='country_ISO_A2', right_on='iso_a2')
     country_data['weighted_mean_longdiff'] = country_data['pop_norm'] * country_data['mean_longitudinal_diff_km']
+    country_data['norm_weighted_mean_longdiff'] = scaler.fit_transform(country_data[['weighted_mean_longdiff']])
     country_data = country_data.drop(columns='country_ISO_A2')
     return country_data
 
