@@ -1,16 +1,13 @@
-import numpy as np
-from bokeh.plotting import figure
-from bokeh.models import GeoJSONDataSource, LinearColorMapper, ColorBar, ColumnDataSource, LabelSet, HoverTool, \
-    CategoricalColorMapper
-from bokeh.tile_providers import Vendors
 from bokeh.models import DataTable, TableColumn
-from bokeh.palettes import Plasma256
+import geopandas as gpd
+import pandas as pd
+from bokeh.plotting import figure
+from bokeh.models import GeoJSONDataSource, CategoricalColorMapper, ColorBar, ColumnDataSource, LabelSet, HoverTool
+from bokeh.tile_providers import get_provider, Vendors
 from bokeh.palettes import brewer
 import json
 import panel as pn
-from datetime import date
-import geopandas as gpd
-import pandas as pd
+import numpy as np
 
 eu_data_path = 'https://raw.githubusercontent.com/pvonderlind/CircadianRythmEU/master/datasets/saved/eu_gpd.geojson'
 city_data_path = 'https://raw.githubusercontent.com/pvonderlind/CircadianRythmEU/master/datasets/saved/city_data.csv'
@@ -35,7 +32,8 @@ def get_bokeh_geodata_source(gpd_df):
 def bokeh_plot_map(data):
     p = figure(toolbar_location='right', tools=bokeh_tools, active_scroll="wheel_zoom",
                title="Distance to eastern timezone meridian for large EU cities",
-               x_range=(top_city_data['mercantor_x'].min(), top_city_data['mercantor_x'].max()))
+               x_range=(-1.3 * 10 ** 6, 4 * 10 ** 6),
+               y_range=(4 * 10 ** 6, 9 * 10 ** 6))
     p.title.text_font_size = '20px'
     p.xgrid.grid_line_color = None
     p.ygrid.grid_line_color = None
@@ -71,24 +69,24 @@ def bokeh_plot_map(data):
     # ADD BARS FOR DISTANCE TO EAST MERIDIAN EFFECT
     length_scale = 200000
     bar_data_source = ColumnDataSource(dict(
-        x0=avg_country_data['mercantor_x'],
-        y0=avg_country_data['mercantor_y'],
-        x1=avg_country_data['mercantor_x'] + (length_scale * avg_country_data['norm_weighted_mean_longdiff']) * np.sign(
-            avg_country_data['weighted_mean_longdiff']),
-        y1=avg_country_data['mercantor_y'],
-        long_diff=avg_country_data['mean_longitudinal_diff_km'],
-        weighted_long_diff=avg_country_data['weighted_mean_longdiff'],
-        long_diff_norm=avg_country_data['norm_weighted_mean_longdiff']
+        x0=data['mercantor_x'],
+        y0=data['mercantor_y'],
+        x1=data['mercantor_x'] + (length_scale * data['norm_weighted_mean_longdiff']) * np.sign(
+            data['weighted_mean_longdiff']),
+        y1=data['mercantor_y'],
+        long_diff=data['mean_longitudinal_diff_km'],
+        weighted_long_diff=data['weighted_mean_longdiff'],
+        long_diff_norm=data['norm_weighted_mean_longdiff']
     )
     )
     divider_len = 50000
     divider_data_source = ColumnDataSource(dict(
-        x0=avg_country_data['mercantor_x'],
-        y0=avg_country_data['mercantor_y'] - divider_len / 2,
-        x1=avg_country_data['mercantor_x'],
-        y1=avg_country_data['mercantor_y'] + divider_len / 2,
-        text=avg_country_data['name'],
-        text_y=(avg_country_data['mercantor_y'] + divider_len / 2) + 1000
+        x0=data['mercantor_x'],
+        y0=data['mercantor_y'] - divider_len / 2,
+        x1=data['mercantor_x'],
+        y1=data['mercantor_y'] + divider_len / 2,
+        text=data['name'],
+        text_y=(data['mercantor_y'] + divider_len / 2) + 1000
     ))
     longdiff_quads = p.segment(x0="x0", y0="y0", x1="x1", y1="y1", line_width=5, source=bar_data_source)
     londiff_diviers = p.segment(x0="x0", y0="y0", x1="x1", y1="y1", line_width=2, source=divider_data_source)
@@ -102,12 +100,6 @@ def bokeh_plot_map(data):
     ]
     p.add_tools(HoverTool(renderers=[longdiff_quads], tooltips=tooltips_longquads, name='long_quads'))
     return p
-
-
-from bokeh.models import DataTable, TableColumn
-
-from bokeh.models import DataTable, TableColumn
-from sklearn.preprocessing import MinMaxScaler
 
 
 def bokeh_country_table(country_data):
@@ -145,19 +137,17 @@ def map_visualization():
     # CREATE MAP  ----------------------------------------------------------------------------------
     # Create Map Panel
     map_pane = pn.pane.Bokeh(sizing_mode='scale_both', width_policy='max')
-    start_date = date(2022, 1, 1)
-    end_date = date(2022, 12, 31)
-    selected_date = pn.widgets.DateSlider(name='Date Slider', value=start_date, start=start_date, end=end_date)
+    dst_text = pn.widgets.StaticText(value='Daylight savings time (DST) enabled:')
+    dst_toggle = pn.widgets.Switch(name="DST Toggle")
 
     eu_geo_tz = eu_gpd.merge(avg_country_data)
 
     def update_map(event):
-        d = selected_date.value
-        selected_sundata = sun_data_gpd.query(f'day == {d.day} & month == {d.month} & year == {d.year}')
-        map_pane.object = bokeh_plot_map(eu_geo_tz)
+        eu_geo_tz_filter = eu_geo_tz[eu_geo_tz['dst'] == dst_toggle.value]
+        map_pane.object = bokeh_plot_map(eu_geo_tz_filter)
 
-    selected_date.param.watch(update_map, 'value')
-    selected_date.param.trigger('value')
+    dst_toggle.param.watch(update_map, 'value')
+    dst_toggle.param.trigger('value')
 
     # CREATE DATATABLES ----------------------------------------------------------------------------------
     sizing_dict = dict(sizing_mode='stretch_both', width_policy='auto', margin=10)
@@ -170,8 +160,8 @@ def map_visualization():
     sun_data_pane.object = bokeh_sun_table(sun_data_gpd.iloc[:, :-1])
 
     # Create panel application layout
-    map_vis = pn.Column(selected_date, map_pane)
-    tabs = pn.Tabs(('Map', map_vis), ('Country Data', country_data_pane), ('Sun Data', sun_data_pane))
+    map_vis = pn.Column(pn.Row(dst_text, dst_toggle), map_pane)
+    tabs = pn.Tabs(('Map', map_vis), ('Country Data', country_data_pane))
     return tabs
 
 

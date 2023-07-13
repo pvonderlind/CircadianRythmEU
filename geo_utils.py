@@ -70,7 +70,22 @@ def get_avg_country_data(city_data: pd.DataFrame, eu_data: pd.DataFrame) -> pd.D
     :param eu_data: Dataframe of data related to european countries (stats, geo, etc.), Has to have iso_a2 field.
     :return: Return an dataframe with averages measures of the given cities for each country.
     """
-    cmeans = city_data.groupby('country_ISO_A2')['longitudinal_diff_km'].mean()
+    standard_wintertime_df = _create_averaged_country_df_for_column('longitudinal_diff_km', city_data, eu_data)
+    standard_wintertime_df['dst'] = False
+    summertime_df = _create_averaged_country_df_for_column('summertime_longitudinal_diff_km', city_data, eu_data)
+    summertime_df['dst'] = True
+
+    country_data = pd.concat([standard_wintertime_df, summertime_df])
+    # Normalize longdiff AFTER concatenation to get a normalization across DST and standard time.
+    scaler = MinMaxScaler()
+    country_data['weighted_mean_longdiff'] = country_data['pop_norm'] * country_data['mean_longitudinal_diff_km']
+    country_data['norm_weighted_mean_longdiff'] = scaler.fit_transform(country_data[['weighted_mean_longdiff']].abs())
+    return country_data
+
+
+def _create_averaged_country_df_for_column(col_label: str, city_data: pd.DataFrame,
+                                           eu_data: pd.DataFrame) -> pd.DataFrame:
+    cmeans = city_data.groupby('country_ISO_A2')[col_label].mean()
     country_data = city_data.groupby('country_ISO_A2').first().reset_index()
     country_data['mean_longitudinal_diff_km'] = country_data.apply(lambda x: cmeans[x['country_ISO_A2']], axis=1)
     country_data = country_data[
@@ -82,8 +97,6 @@ def get_avg_country_data(city_data: pd.DataFrame, eu_data: pd.DataFrame) -> pd.D
     scaler = MinMaxScaler()
     eu_data_pop.loc[:, ['pop_norm']] = scaler.fit_transform(eu_data_pop[['pop_est']])
     country_data = country_data.merge(eu_data_pop, left_on='country_ISO_A2', right_on='iso_a2')
-    country_data['weighted_mean_longdiff'] = country_data['pop_norm'] * country_data['mean_longitudinal_diff_km']
-    country_data['norm_weighted_mean_longdiff'] = scaler.fit_transform(country_data[['weighted_mean_longdiff']].abs())
     country_data = country_data.drop(columns='country_ISO_A2')
     return country_data
 
@@ -98,9 +111,10 @@ def _get_top_n_pop_cities_per_country(top_n_pop: int) -> pd.DataFrame:
     # Extract city name, country codes by merging with metadata
     eu_cities_pop = pd.DataFrame()
     eu_cities_pop['code_info'] = eu_cities_pop_full.iloc[:, 0]
-    eu_cities_pop['population'] = eu_cities_pop_full.iloc[:, 1:].applymap(lambda x: int(x.split(' ')[0]) if type(x) != int else x).astype('int32').max(axis=1)
+    eu_cities_pop['population'] = eu_cities_pop_full.iloc[:, 1:].applymap(
+        lambda x: int(x.split(' ')[0]) if type(x) != int else x).astype('int32').max(axis=1)
     eu_cities_pop['CODE'] = eu_cities_pop.iloc[:, 0].apply(lambda x: x.split(',')[-1])
-    eu_cities_pop = eu_cities_pop[eu_cities_pop['CODE'].apply(lambda x: x[-1] == 'C')] # Filter out cities only !
+    eu_cities_pop = eu_cities_pop[eu_cities_pop['CODE'].apply(lambda x: x[-1] == 'C')]  # Filter out cities only !
     eu_cities_pop['country_ISO_A2'] = eu_cities_pop['CODE'].apply(lambda x: x[0:2])
     eu_cities_pop = eu_cities_pop[eu_cities_pop['country_ISO_A2'].isin(country_whitelist['iso_A2'])]
     eu_cities = eu_cities_pop.merge(city_codes, on='CODE')
@@ -143,14 +157,6 @@ def _mercantor_from_coords(lat, lon):
 
 def _add_tz_info(x):
     long = x['longitude']
-    lat = x['latitude']
-    # tz_name = tf.timezone_at(lng=long, lat=lat)
-    # utc_offset = timezone(tz_name).utcoffset(dt_now, is_dst=True).total_seconds() / 60 / 60
-    #
-    # # Subtract one hour so the timezone of Europe/London is 0 --> All others are fine then too
-    # # THis works since we are interested in the sun-based timezones only for this
-    # if ADJUST_LOCAL_SUMMERTIME:
-    #     utc_offset -= 1
 
     tz_info = timezone_df.loc[x['country_ISO_A2']]
     utc_offset = tz_info['gmt_offset']
@@ -158,26 +164,29 @@ def _add_tz_info(x):
 
     # Get longitudinal meridian values for each timezone --> 15 degrees per tz (360 deg / 24 hours)
     # We then calculate the distance to it similar to [Trang Vophan et. al 2018]
+    standard_winter_time_londiff_km = _get_longdiff_km_for_utc_offset(long, utc_offset)
+    summertime_longdiff_km = _get_longdiff_km_for_utc_offset(long, utc_offset + 1)
+
+    return tz_name, utc_offset, summertime_longdiff_km, standard_winter_time_londiff_km
+
+
+def _get_longdiff_km_for_utc_offset(long, utc_offset: int):
     meridian_east = 15 * utc_offset
     long_diff = meridian_east - long
     long_diff_km = LONGITUDE_DEGREE_KM_RATIO * long_diff
-
-    return tz_name, utc_offset, long_diff, long_diff_km
+    return long_diff_km
 
 
 def _get_timezone_data(top_city_data: pd.DataFrame) -> pd.DataFrame:
     # Load timezones and offsets
     tz_geo_info = top_city_data.apply(lambda x: _add_tz_info(x), axis='columns', result_type='expand')
-    tz_geo_info.columns = ['social_timezone', 'utc_sun_timezone_offset', 'longitudinal_diff', 'longitudinal_diff_km']
-
-    # Check if adjustment was correct, if not, maybe look at if summertime is active in you current location
-    london_tz = tz_geo_info[tz_geo_info['social_timezone'] == 'Europe/London']
-    assert all(london_tz['utc_sun_timezone_offset'] == 0)
-
+    tz_geo_info.columns = ['social_timezone', 'utc_sun_timezone_offset', 'summertime_longitudinal_diff_km',
+                           'longitudinal_diff_km']
     return tz_geo_info
 
 
 if __name__ == "__main__":
     test_cities = get_eu_city_data(3)
-    test_tz = _add_timezone_features_to_cities(test_cities)
+    eu_data = load_eu_countries_as_geopandas()
+    country_data = get_avg_country_data(test_cities, eu_data)
     pass
