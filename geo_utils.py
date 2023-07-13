@@ -18,21 +18,20 @@ ADJUST_LOCAL_SUMMERTIME = True
 LONGITUDE_DEGREE_KM_RATIO = 80
 
 
-def load_eu_countries_as_geopandas(ignored_countries=None) -> gpd.GeoDataFrame:
+def load_eu_countries_as_geopandas() -> gpd.GeoDataFrame:
     """
     Loads a geopandas dataframe using the 'naturalearth_lowres' dataset from GeoPandas
     for europe. This includes borders and other country data.
     :param ignored_countries: A list of countries in ISO_A3 to ignore.
     :return: Returns a GeoPandas dataframe of european countries.
     """
-    if ignored_countries is None:
-        ignored_countries = ['RUS']
+    country_whitelist = pd.read_csv('datasets/saved/eu_country_codes.csv')
     world = gpd.read_file(gpd.datasets.get_path('naturalearth_lowres'))
     europe = world[world.continent == 'Europe']
-    europe = europe[~europe['iso_a3'].isin(ignored_countries)]
     c = CountryInfo()
     iso_conversion = {v['ISO']['alpha3']: v['ISO']['alpha2'] for _, v in c.all().items()}
     europe['iso_a2'] = europe.apply(lambda x: iso_conversion.get(x['iso_a3'], None), axis=1)
+    europe = europe[europe['iso_a2'].isin(country_whitelist['iso_A2'])]
     return europe
 
 
@@ -72,7 +71,8 @@ def get_avg_country_data(city_data: pd.DataFrame, eu_data: pd.DataFrame) -> pd.D
     cmeans = city_data.groupby('country_ISO_A2')['longitudinal_diff_km'].mean()
     country_data = city_data.groupby('country_ISO_A2').first().reset_index()
     country_data['mean_longitudinal_diff_km'] = country_data.apply(lambda x: cmeans[x['country_ISO_A2']], axis=1)
-    country_data = country_data[['social_timezone', 'mean_longitudinal_diff_km', 'country_ISO_A2', 'mercantor_x', 'mercantor_y']]
+    country_data = country_data[
+        ['social_timezone', 'mean_longitudinal_diff_km', 'country_ISO_A2', 'mercantor_x', 'mercantor_y']]
 
     # Merge population metric from eu_gpd, normalize and merge to country data
     eu_data_pop = eu_data[['iso_a2', 'pop_est', 'name']]
@@ -84,19 +84,23 @@ def get_avg_country_data(city_data: pd.DataFrame, eu_data: pd.DataFrame) -> pd.D
     country_data = country_data.drop(columns='country_ISO_A2')
     return country_data
 
+
 def _get_top_n_pop_cities_per_country(top_n_pop: int) -> pd.DataFrame:
     # Load data from Urban Audit dataset
-    eu_cities_pop = pd.read_csv('datasets/Eurostat/urban_population/urb_cpop1_page_tabular.tsv', sep='\t', header=0)
+    eu_cities_pop_full = pd.read_csv('datasets/Eurostat/urban_population/urb_cpop1_page_tabular_full.tsv',
+                                     sep='\t', header=0)
+    eu_cities_pop_full = eu_cities_pop_full.replace(r'^(\D+)$', 0, regex=True)
     city_codes = pd.read_excel('datasets/Eurostat/urban_population/urb_esms_an4.xlsx', dtype=str)
 
     # Extract city name, country codes by merging with metadata
-    eu_cities_pop.columns = ['code_info', 'population']
-    eu_cities_pop['population'] = eu_cities_pop['population'].apply(lambda x: int(x.split(' ')[0]))
+    eu_cities_pop = pd.DataFrame()
+    eu_cities_pop['code_info'] = eu_cities_pop_full.iloc[:, 0]
+    eu_cities_pop['population'] = eu_cities_pop_full.iloc[:, 1:].applymap(lambda x: int(x.split(' ')[0]) if type(x) != int else x).astype('int32').max(axis=1)
     eu_cities_pop['CODE'] = eu_cities_pop.iloc[:, 0].apply(lambda x: x.split(',')[-1])
+    eu_cities_pop = eu_cities_pop[eu_cities_pop['CODE'].apply(lambda x: x[-1] == 'C')] # Filter out cities only !
     eu_cities_pop['country_ISO_A2'] = eu_cities_pop['CODE'].apply(lambda x: x[0:2])
     eu_cities = eu_cities_pop.merge(city_codes, on='CODE')
     eu_cities = eu_cities.iloc[:, 1:]
-    eu_cities = eu_cities[eu_cities_pop['CODE'].apply(lambda x: len(x) > 2)]
 
     # Get top n cities population wise per country
     top_n_cities_per_country = eu_cities.groupby('country_ISO_A2').apply(
@@ -163,3 +167,7 @@ def _get_timezone_data(top_city_data: pd.DataFrame) -> pd.DataFrame:
     assert all(london_tz['utc_sun_timezone_offset'] == 0)
 
     return tz_geo_info
+
+
+if __name__ == "__main__":
+    get_eu_city_data(3)
