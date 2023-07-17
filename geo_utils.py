@@ -1,12 +1,10 @@
 import geopandas as gpd
-import numpy as np
 import pandas as pd
 from countryinfo import CountryInfo
 from sklearn.preprocessing import MinMaxScaler
 from unidecode import unidecode
 from geopy.geocoders import Nominatim
 from timezonefinder import TimezoneFinder
-from pytz import timezone
 from datetime import datetime
 import math
 
@@ -78,6 +76,8 @@ def get_avg_country_data(city_data: pd.DataFrame, eu_data: pd.DataFrame) -> pd.D
     country_data = pd.concat([standard_wintertime_df, summertime_df])
     # Normalize longdiff AFTER concatenation to get a normalization across DST and standard time.
     scaler = MinMaxScaler()
+    # bias of 1 so larger countries double their effect, and we avoid 0, which is helpful for the visualization
+    country_data['weights'] = scaler.fit_transform(country_data[['pop_norm']]) + 1
     country_data['weighted_mean_longdiff'] = country_data['pop_norm'] * country_data['mean_longitudinal_diff_km']
     country_data['norm_weighted_mean_longdiff'] = scaler.fit_transform(country_data[['weighted_mean_longdiff']].abs())
     return country_data
