@@ -12,6 +12,7 @@ def get_sunrise_data_avgs_for_countries(top_cities: pd.DataFrame) -> pd.DataFram
     sun_df = _calculate_sunrise_for_city_df(top_cities, dates)
     avg_sun_df = _calculate_averages_for_countries_for_st_dst(sun_df)
     avg_sun_df = _add_differences_to_9_o_clock(avg_sun_df)
+    avg_sun_df = _reformat_timedelta_columns(avg_sun_df)
     return avg_sun_df.reset_index()
 
 
@@ -98,6 +99,19 @@ def _add_differences_to_9_o_clock(avg_sun_df: pd.DataFrame) -> pd.DataFrame:
     avg_sun_df['winter_diff_h'] = avg_sun_df['winter_period'].apply(
         lambda x: (timestamp_9 - x).total_seconds() / 60 / 60)
     return avg_sun_df
+
+
+def _reformat_timedelta_columns(avg_sun_df: pd.DataFrame) -> pd.DataFrame:
+    avg_sun_df['summer_period'] = avg_sun_df['summer_period'].apply(lambda x: _get_time_from_timedelta(x))
+    avg_sun_df['winter_period'] = avg_sun_df['winter_period'].apply(lambda x: _get_time_from_timedelta(x))
+    return avg_sun_df
+
+
+def _get_time_from_timedelta(timedelta) -> str:
+    seconds = timedelta.total_seconds()
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    return datetime.time(hour=hours, minute=minutes).strftime("%H:%M")
 
 
 if __name__ == "__main__":
