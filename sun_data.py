@@ -93,9 +93,9 @@ def _calculate_sunrise_averages_for_countries(sun_df: pd.DataFrame, time_column:
 
 def _add_differences_to_9_o_clock(avg_sun_df: pd.DataFrame) -> pd.DataFrame:
     timestamp_9 = pd.Timedelta(hours=9)
-    avg_sun_df['summer_diff_min'] = avg_sun_df['summer_period'].apply(
+    avg_sun_df['summer_diff_h'] = avg_sun_df['summer_period'].apply(
         lambda x: (timestamp_9 - x).total_seconds() / 60 / 60)
-    avg_sun_df['winter_diff_min'] = avg_sun_df['winter_period'].apply(
+    avg_sun_df['winter_diff_h'] = avg_sun_df['winter_period'].apply(
         lambda x: (timestamp_9 - x).total_seconds() / 60 / 60)
     return avg_sun_df
 
