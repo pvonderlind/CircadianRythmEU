@@ -9,7 +9,7 @@ import json
 import panel as pn
 import numpy as np
 
-eu_geo_tz_path = 'https://github.com/pvonderlind/CircadianRythmEU/blob/master/datasets/saved/eu_geo_tz.geojson'
+eu_geo_tz_path = 'https://raw.githubusercontent.com/pvonderlind/CircadianRythmEU/master/datasets/saved/eu_geo_tz.geojson'
 eu_geo_tz = gpd.read_file(eu_geo_tz_path)
 
 data_field = 'social_timezone'
