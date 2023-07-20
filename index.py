@@ -135,14 +135,16 @@ def map_visualization():
 
     filter_df = eu_geo_tz[eu_geo_tz['dst'] == False]
     weighted_time_diff_avg = filter_df.apply(lambda x: x['pop_percent'] * x['summer_diff_h'] ,axis=1).sum()
-    avg_text = pn.widgets.StaticText(value=f'Population weighted avg. time difference from sunrise to 9:00: {weighted_time_diff_avg}')
+    h, m = divmod(weighted_time_diff_avg * 60, 60)
+    avg_text = pn.widgets.StaticText(value=f'Population weighted avg. time difference from sunrise to 9:00: {int(h)}h:{int(m)}m')
 
     def update_map(event):
         eu_geo_tz_filter = eu_geo_tz[eu_geo_tz['dst'] == dst_toggle.value]
         map_pane.object = bokeh_plot_map(eu_geo_tz_filter, period_toggle.value)
 
         new_avg = eu_geo_tz_filter.apply(lambda x: x['pop_percent'] * x['winter_diff_h' if period_toggle.value else 'summer_diff_h'] ,axis=1).sum()
-        avg_text.value = f'Population weighted avg. time difference from sunrise to 9:00: {new_avg}'
+        h, m = divmod(new_avg * 60, 60)
+        avg_text.value = f'Population weighted avg. time difference from sunrise to 9:00: {int(h)}h:{int(m)}m'
 
     dst_toggle.param.watch(update_map, 'value')
     dst_toggle.param.trigger('value')
@@ -160,7 +162,6 @@ def map_visualization():
     map_vis = pn.Column(pn.Row(pn.Column(pn.Row(dst_text, dst_toggle), pn.Row(period_text, period_toggle)), avg_text), map_pane)
     tabs = pn.Tabs(('Map', map_vis), ('Country Data', country_data_pane))
     return tabs
-
 
 # SERVE APP
 app = map_visualization()
