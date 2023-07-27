@@ -26,11 +26,11 @@ def load_eu_countries_as_geopandas() -> gpd.GeoDataFrame:
     :return: Returns a GeoPandas dataframe of european countries.
     """
     world = gpd.read_file(gpd.datasets.get_path('naturalearth_lowres'))
-    europe = world[world.continent == 'Europe']
     c = CountryInfo()
     iso_conversion = {v['ISO']['alpha3']: v['ISO']['alpha2'] for _, v in c.all().items()}
-    europe['iso_a2'] = europe.apply(lambda x: iso_conversion.get(x['iso_a3'], None), axis=1)
-    europe = europe[europe['iso_a2'].isin(country_whitelist['iso_A2'])]
+    iso_conversion['GRC'] = 'EL' # Hacky solution but this fixes the iso conversion to EU norm
+    world['iso_a2'] = world.apply(lambda x: iso_conversion.get(x['iso_a3'], None), axis=1)
+    europe = world[world['iso_a2'].isin(country_whitelist['iso_A2'])]
     europe = europe.to_crs(3857)
     return europe
 
@@ -108,6 +108,7 @@ def _get_top_n_pop_cities_per_country(top_n_pop: int) -> pd.DataFrame:
                                      sep='\t', header=0)
     eu_cities_pop_full = eu_cities_pop_full.replace(r'^(\D+)$', 0, regex=True)
     city_codes = pd.read_excel('datasets/Eurostat/urban_population/urb_esms_an4.xlsx', dtype=str)
+    city_codes['CODE'] = city_codes['CODE'].apply(lambda x: x.strip())
 
     # Extract city name, country codes by merging with metadata
     eu_cities_pop = pd.DataFrame()
@@ -187,7 +188,7 @@ def _get_timezone_data(top_city_data: pd.DataFrame) -> pd.DataFrame:
 
 
 if __name__ == "__main__":
-    test_cities = get_eu_city_data(3)
+    #test_cities = get_eu_city_data(3)
     eu_data = load_eu_countries_as_geopandas()
-    country_data = get_avg_country_data(test_cities, eu_data)
+    #country_data = get_avg_country_data(test_cities, eu_data)
     pass
