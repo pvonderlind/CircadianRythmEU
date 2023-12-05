@@ -6,7 +6,7 @@ from bokeh.models import GeoJSONDataSource, CategoricalColorMapper, ColorBar, Co
 from bokeh.tile_providers import get_provider, Vendors
 from bokeh.palettes import brewer
 import json
-from panel import panel as pn
+import panel as pn
 import numpy as np
 
 eu_geo_tz_path = 'https://raw.githubusercontent.com/pvonderlind/CircadianRythmEU/master/datasets/saved/eu_geo_tz.geojson'
